@@ -4,6 +4,9 @@ Simple bot implementation to demonstrate functionality.
 Answers the question: бот работает? (Does the bot work?)
 """
 
+# Bot state
+current_role = "user"
+
 def bot_status():
     """Check if the bot is working."""
     return "Да, бот работает! (Yes, the bot works!)"
@@ -15,6 +18,21 @@ def bot_greet(name="User"):
 def bot_echo(message):
     """Bot echo function."""
     return f"Бот получил: {message} (Bot received: {message})"
+
+def handle_command(command):
+    """Handle bot commands. Returns None for silent commands."""
+    global current_role
+    
+    if command == "/s":
+        # Silently switch role without sending any message
+        current_role = "admin" if current_role == "user" else "user"
+        return None  # No message sent
+    
+    return f"Неизвестная команда: {command}"
+
+def get_current_role():
+    """Get the current bot role."""
+    return current_role
 
 def main():
     """Main function to demonstrate bot functionality."""
@@ -37,6 +55,17 @@ def main():
     # Test 3: Echo
     print("Тест 3: Эхо (Test 3: Echo)")
     print(bot_echo("Привет, бот!"))
+    print()
+    
+    # Test 4: Command handling (/s command)
+    print("Тест 4: Команда /s (Test 4: /s command)")
+    print(f"Текущая роль (Current role): {get_current_role()}")
+    result = handle_command("/s")
+    if result is None:
+        print("✓ Команда /s выполнена без сообщения (Command /s executed silently)")
+    else:
+        print(result)
+    print(f"Новая роль (New role): {get_current_role()}")
     print()
     
     print("=" * 60)
