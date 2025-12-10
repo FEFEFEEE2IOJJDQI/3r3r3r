@@ -24,6 +24,8 @@ python3 test_bot.py
 - `bot_status()` - Проверка статуса бота (Check bot status)
 - `bot_greet(name)` - Приветствие (Greeting)
 - `bot_echo(message)` - Эхо сообщения (Echo message)
+- `handle_command(command)` - Обработка команд (Command handling)
+  - `/s` - Тихое переключение роли (Silent role switch) - НЕ отправляет сообщение об изменении (does NOT send change message)
 
 ## Требования (Requirements)
 
