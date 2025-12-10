@@ -4,6 +4,7 @@ Test script for the bot to verify it works correctly.
 """
 
 import sys
+import bot as bot_module
 from bot import bot_status, bot_greet, bot_echo, handle_command, get_current_role
 
 def test_bot_status():
@@ -32,9 +33,8 @@ def test_bot_echo():
 
 def test_command_s():
     """Test /s command - should change role silently (no message)."""
-    import bot
     # Reset to known state
-    bot.current_role = "user"
+    bot_module.current_role = "user"
     initial_role = get_current_role()
     
     # Execute /s command
