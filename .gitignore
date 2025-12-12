@@ -1,0 +1,9 @@
+# Ignore virtual environments and caches
+TelegramRevamp/.venv/
+TelegramRevamp/__pycache__/
+__pycache__/
+.env
+
+# OS files
+.DS_Store
+thumbs.db
