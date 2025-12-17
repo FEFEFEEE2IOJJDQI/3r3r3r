@@ -11,11 +11,11 @@ def _feed_button(text: str = "📱 Лента заказов") -> InlineKeyboard
 
 def get_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Заказчик", callback_data="role_customer"),
-         InlineKeyboardButton(text="⚡ Исполнитель", callback_data="role_executor")],
-        [InlineKeyboardButton(text="🔍 Пробив", callback_data="probiv"),
-         InlineKeyboardButton(text="📞 Поддержка", callback_data="support_center")],
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_chat")]
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan1")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan2")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan3")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan4")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan5")]
     ])
     return keyboard
 
@@ -51,6 +51,7 @@ def get_customer_menu(orders_count=0):
         [InlineKeyboardButton(text="➕ Создать заказ", callback_data="create_order")],
         [InlineKeyboardButton(text=f"📋 Мои заказы{orders_badge}", callback_data="my_orders"),
          InlineKeyboardButton(text="🏆 Топ", callback_data="top_executors")],
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="customer_profile")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")]
     ])
     return keyboard
@@ -428,6 +429,13 @@ def get_profile_keyboard(user_id):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💬 Все отзывы", callback_data=f"show_reviews_{user_id}")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_executor_menu")]
+    ])
+    return keyboard
+
+def get_customer_profile_keyboard(user_id):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Все отзывы", callback_data=f"show_customer_reviews_{user_id}")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_customer")]
     ])
     return keyboard
 

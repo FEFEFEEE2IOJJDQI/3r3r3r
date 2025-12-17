@@ -14,7 +14,7 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8573231093:AAGzONKrZ_OVz_d
 ADMIN_CODE = "4577"
 
 # ==================== DATABASE SETTINGS ====================
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:4577@localhost:5432/postgres')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:45774577@localhost:5432/postgres')
 
 # ==================== WEB APP SETTINGS ====================
 # Телеграм мини-приложение может жить на разных доменах (Replit, Codespaces, прод)
