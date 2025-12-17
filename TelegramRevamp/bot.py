@@ -3808,6 +3808,71 @@ async def show_all_reviews(callback: types.CallbackQuery):
     await smart_edit_or_send(callback, text, reply_markup=back_keyboard, parse_mode="HTML")
     await callback.answer()
 
+@dp.callback_query(F.data == "customer_profile")
+async def customer_profile(callback: types.CallbackQuery):
+    """Shows customer profile with their statistics and ratings"""
+    if await check_banned(callback.from_user.id):
+        await callback.answer("❌ Вы заблокированы в системе.", show_alert=True)
+        return
+    
+    user = await db.get_user(callback.from_user.id)
+    reviews = await db.get_reviews(callback.from_user.id)
+    
+    # Get customer statistics
+    active_orders = await db.get_customer_orders(callback.from_user.id)
+    completed_orders = await db.get_customer_completed_orders(callback.from_user.id)
+    customer_rating = float(await db.get_customer_rating(callback.from_user.id) or 0.0)
+    
+    days_in_project = (datetime.now() - user['created_at']).days
+    username_str = f"@{user['username']}" if user['username'] else "не указан"
+    
+    # Calculate total orders
+    total_orders = len(active_orders) + len(completed_orders)
+    review_count = len(reviews)
+    
+    text = f"━━━━━━━━━━━━━━━━━\n\n"
+    
+    # Compact stats - more centered
+    text += f"⭐ {customer_rating:.1f}   •   📦 {total_orders}   •   💬 {review_count}\n\n"
+    
+    # Key stats - side by side
+    text += f"📝 Активных: <b>{len(active_orders)}</b>   •   ✅ Выполнено: <b>{len(completed_orders)}</b>\n"
+    text += f"📅 Дней в проекте: <b>{days_in_project}</b>\n"
+    
+    text += f"\n━━━━━━━━━━━━━━━━━"
+    
+    await callback.message.edit_text(
+        text, 
+        reply_markup=get_customer_profile_keyboard(callback.from_user.id),
+        parse_mode="HTML"
+    )
+    await db.save_last_bot_message(callback.from_user.id, callback.message.message_id, callback.message.chat.id)
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("show_customer_reviews_"))
+async def show_all_customer_reviews(callback: types.CallbackQuery):
+    """Shows all reviews for a customer"""
+    user_id = int(callback.data.split("_")[3])
+    reviews = await db.get_reviews(user_id)
+    
+    if not reviews:
+        await callback.answer("💬 Отзывов пока нет", show_alert=True)
+        return
+    
+    text = f"<b>Все отзывы ({len(reviews)}):</b>\n\n"
+    for review in reviews:
+        text += f"Оценка: {review['rating']}/5\n"
+        text += f"От: @{review['username'] or 'не указан'}\n"
+        if review['comment']:
+            text += f"💬 {review['comment']}\n"
+        text += "\n"
+    
+    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="customer_profile")]
+    ])
+    await smart_edit_or_send(callback, text, reply_markup=back_keyboard, parse_mode="HTML")
+    await callback.answer()
+
 @dp.callback_query(F.data == "leaderboard")
 async def leaderboard(callback: types.CallbackQuery):
     if await check_banned(callback.from_user.id):

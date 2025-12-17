@@ -51,6 +51,7 @@ def get_customer_menu(orders_count=0):
         [InlineKeyboardButton(text="➕ Создать заказ", callback_data="create_order")],
         [InlineKeyboardButton(text=f"📋 Мои заказы{orders_badge}", callback_data="my_orders"),
          InlineKeyboardButton(text="🏆 Топ", callback_data="top_executors")],
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="customer_profile")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")]
     ])
     return keyboard
@@ -428,6 +429,13 @@ def get_profile_keyboard(user_id):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💬 Все отзывы", callback_data=f"show_reviews_{user_id}")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_executor_menu")]
+    ])
+    return keyboard
+
+def get_customer_profile_keyboard(user_id):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Все отзывы", callback_data=f"show_customer_reviews_{user_id}")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_customer")]
     ])
     return keyboard
 
