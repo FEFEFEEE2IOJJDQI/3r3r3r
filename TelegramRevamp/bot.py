@@ -1,9 +1,11 @@
 import os
 import asyncio
+import contextlib
 from typing import Any, Coroutine, Dict, Optional
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -12,7 +14,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from aiogram.enums import ChatAction
 from database import Database
-from keyboards import *
+try:
+    from keyboards import *
+except ModuleNotFoundError:
+    import importlib
+    import sys
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    globals().update(importlib.import_module("TelegramRevamp.keyboards").__dict__)
 import logging
 
 load_dotenv()
@@ -28,6 +39,17 @@ db = Database()
 
 last_command_time: Dict[int, datetime] = {}
 running_start_tasks: Dict[int, asyncio.Task] = {}
+
+
+# Восстановленный обработчик команды /start с инлайн-кнопками
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message, state: FSMContext):
+    # Пример инлайн-клавиатуры (можно заменить на get_main_menu или другую функцию из keyboards.py)
+    keyboard = get_main_menu() if 'get_main_menu' in globals() else None
+    await message.answer(
+        "Добро пожаловать! Выберите действие:",
+        reply_markup=keyboard
+    )
 
 
 def _run_background(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task:
@@ -76,6 +98,23 @@ async def _cleanup_previous_bot_message(user_id: int, chat_id: int):
         )
 
 ADMIN_CODE = "4577"
+
+
+def _days_since(dt: Optional[datetime]) -> int:
+    """Безопасно считает количество дней с учётом часовых поясов."""
+    if not dt:
+        return 0
+    if dt.tzinfo is None:
+        now = datetime.utcnow()
+    else:
+        now = datetime.now(dt.tzinfo)
+    try:
+        diff = now - dt
+        return max(diff.days, 0)
+    except TypeError:
+        # На случай смешения aware/naive дат приводим к UTC
+        base = dt.replace(tzinfo=None)
+        return max((datetime.utcnow() - base).days, 0)
 
 class CreateOrder(StatesGroup):
     price = State()
@@ -661,11 +700,12 @@ async def customer_role(callback: types.CallbackQuery, state: FSMContext):
     await db.update_role(callback.from_user.id, 'customer')
     user = await db.get_user(callback.from_user.id)
     user_id = callback.from_user.id
+    await db.ensure_customer_profile(user_id)
     
-    days_in_project = (datetime.now() - user['created_at']).days
+    days_in_project = _days_since(user['created_at'] if user else None)
     active_orders = await db.get_customer_orders(user_id)
     completed_orders = await db.get_customer_completed_orders(user_id)
-    customer_rating = await db.get_customer_rating(user_id)
+    customer_rating = float(await db.get_customer_rating(user_id) or 0.0)
     
     text = "👤 <b>Режим Заказчика</b>\n"
     text += "━━━━━━━━━━━━━━━\n\n"
@@ -677,12 +717,13 @@ async def customer_role(callback: types.CallbackQuery, state: FSMContext):
     text += "━━━━━━━━━━━━━━━\n"
     text += "💡 Создавайте заказы и находите исполнителей!"
     
-    await callback.message.edit_text(
+    message_id = await smart_edit_or_send(
+        callback,
         text,
         reply_markup=await get_customer_menu_with_counts(callback.from_user.id),
         parse_mode="HTML"
     )
-    await db.save_last_bot_message(callback.from_user.id, callback.message.message_id, callback.message.chat.id)
+    await db.save_last_bot_message(callback.from_user.id, message_id, callback.message.chat.id)
     await callback.answer()
 
 @dp.callback_query(F.data == "role_executor")
@@ -702,33 +743,45 @@ async def executor_role(callback: types.CallbackQuery, state: FSMContext):
     await db.update_role(callback.from_user.id, 'executor')
     user = await db.get_user(callback.from_user.id)
     user_id = callback.from_user.id
+    await db.ensure_executor_profile(user_id)
     profile = await db.get_executor_profile(user_id)
-    days_in_project = (datetime.now() - user['created_at']).days
-    
+    created_at = user['created_at'] if user else None
+    days_in_project = _days_since(created_at)
+
+    # Обнуляем показатели, если профиль ещё не заполнен
+    rating = 0.0
+    level = 'новичок'
+    completed_total = 0
+    if profile:
+        rating = float(profile['rating']) if profile['rating'] is not None else 0.0
+        level = profile['level'] or 'новичок'
+        completed_total = profile['completed_orders'] or 0
+
     active_orders = await db.get_executor_orders(user_id)
     completed_orders = await db.get_executor_history(user_id)
     completed_only = [o for o in completed_orders if o['status'] == 'completed']
-    
-    total_earned = sum(order['price'] for order in completed_only if order['price'])
-    
+
+    total_earned = sum(float(order['price']) for order in completed_only if order['price'])
+
     text = "⚡ <b>Режим Исполнителя</b>\n"
     text += "━━━━━━━━━━━━━━━\n\n"
     text += f"📅 Дней в проекте: <b>{days_in_project}</b>\n"
-    text += f"⭐ Ваш рейтинг: <b>{profile['rating']}</b>\n"
-    text += f"🏆 Уровень: <b>{profile['level']}</b>\n\n"
+    text += f"⭐ Ваш рейтинг: <b>{rating:.2f}</b>\n"
+    text += f"🏆 Уровень: <b>{level}</b>\n\n"
     text += f"📊 <b>Ваша статистика:</b>\n"
     text += f"├ 📝 Активных заказов: <b>{len(active_orders)}</b>\n"
-    text += f"├ ✅ Выполнено заказов: <b>{profile['completed_orders']}</b>\n"
+    text += f"├ ✅ Выполнено заказов: <b>{completed_total}</b>\n"
     text += f"└ 💰 Заработано: <b>{total_earned:,.0f} ₽</b>\n\n"
     text += "━━━━━━━━━━━━━━━\n"
     text += "💡 Берите заказы и зарабатывайте!"
-    
-    await callback.message.edit_text(
+
+    message_id = await smart_edit_or_send(
+        callback,
         text,
         reply_markup=await get_executor_menu_with_counts(callback.from_user.id),
         parse_mode="HTML"
     )
-    await db.save_last_bot_message(callback.from_user.id, callback.message.message_id, callback.message.chat.id)
+    await db.save_last_bot_message(callback.from_user.id, message_id, callback.message.chat.id)
     await callback.answer()
 
 @dp.callback_query(F.data == "probiv")
@@ -3316,7 +3369,7 @@ async def back_to_executor_menu(callback: types.CallbackQuery):
         user = await db.get_user(callback.from_user.id)
         user_id = callback.from_user.id
         profile = await db.get_executor_profile(user_id)
-        days_in_project = (datetime.now() - user['created_at']).days if user else 0
+        days_in_project = _days_since(user['created_at'] if user else None)
         
         active_orders = await db.get_executor_orders(user_id)
         completed_orders = await db.get_executor_history(user_id)
@@ -4124,34 +4177,40 @@ async def show_current_role(callback: types.CallbackQuery):
     # Открываем соответствующую панель в зависимости от роли
     if user.get('user_role') == 'executor':
         user_id = callback.from_user.id
+        await db.ensure_executor_profile(user_id)
         profile = await db.get_executor_profile(user_id)
-        days_in_project = (datetime.now() - user['created_at']).days if user else 0
+        days_in_project = _days_since(user['created_at'] if user else None)
         
         active_orders = await db.get_executor_orders(user_id)
         completed_orders = await db.get_executor_history(user_id)
         completed_only = [o for o in completed_orders if o['status'] == 'completed']
-        total_earned = sum(order['price'] for order in completed_only if order['price'])
+        total_earned = sum(float(order['price']) for order in completed_only if order['price'])
+        rating_val = float(profile['rating']) if profile and profile['rating'] is not None else 0.0
+        level_val = profile['level'] if profile and profile['level'] else 'новичок'
+        completed_val = profile['completed_orders'] if profile and profile['completed_orders'] is not None else 0
         
         text = "⚡ <b>Режим Исполнителя</b>\n"
         text += "━━━━━━━━━━━━━━━\n\n"
         text += f"📅 Дней в проекте: <b>{days_in_project}</b>\n"
-        text += f"⭐ Ваш рейтинг: <b>{profile['rating'] if profile else 0}</b>\n"
-        text += f"🏆 Уровень: <b>{profile['level'] if profile else 'новичок'}</b>\n\n"
+        text += f"⭐ Ваш рейтинг: <b>{rating_val:.2f}</b>\n"
+        text += f"🏆 Уровень: <b>{level_val}</b>\n\n"
         text += f"📊 <b>Ваша статистика:</b>\n"
         text += f"├ 📝 Активных заказов: <b>{len(active_orders)}</b>\n"
-        text += f"├ ✅ Выполнено заказов: <b>{profile['completed_orders'] if profile else 0}</b>\n"
+        text += f"├ ✅ Выполнено заказов: <b>{completed_val}</b>\n"
         text += f"└ 💰 Заработано: <b>{total_earned:,.0f} ₽</b>\n\n"
         text += "━━━━━━━━━━━━━━━\n"
         text += "💡 Берите заказы и зарабатывайте!"
         
         menu = await get_executor_menu_with_counts(callback.from_user.id)
-        await smart_edit_or_send(callback, text, reply_markup=menu, parse_mode="HTML")
+        message_id = await smart_edit_or_send(callback, text, reply_markup=menu, parse_mode="HTML")
+        await db.save_last_bot_message(callback.from_user.id, message_id, callback.message.chat.id)
     else:
         user_id = callback.from_user.id
-        days_in_project = (datetime.now() - user['created_at']).days if user else 0
+        await db.ensure_customer_profile(user_id)
+        days_in_project = _days_since(user['created_at'] if user else None)
         active_orders = await db.get_customer_orders(user_id)
         completed_orders = await db.get_customer_completed_orders(user_id)
-        customer_rating = await db.get_customer_rating(user_id)
+        customer_rating = float(await db.get_customer_rating(user_id) or 0.0)
         
         text = "👤 <b>Режим Заказчика</b>\n"
         text += "━━━━━━━━━━━━━━━\n\n"
@@ -4164,7 +4223,8 @@ async def show_current_role(callback: types.CallbackQuery):
         text += "💡 Создавайте заказы и находите исполнителей!"
         
         menu = await get_customer_menu_with_counts(callback.from_user.id)
-        await smart_edit_or_send(callback, text, reply_markup=menu, parse_mode="HTML")
+        message_id = await smart_edit_or_send(callback, text, reply_markup=menu, parse_mode="HTML")
+        await db.save_last_bot_message(callback.from_user.id, message_id, callback.message.chat.id)
     
     await callback.answer()
 

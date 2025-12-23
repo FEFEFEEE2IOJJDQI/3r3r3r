@@ -11,11 +11,11 @@ def _feed_button(text: str = "📱 Лента заказов") -> InlineKeyboard
 
 def get_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Заказчик", callback_data="role_customer"),
-         InlineKeyboardButton(text="⚡ Исполнитель", callback_data="role_executor")],
-        [InlineKeyboardButton(text="🔍 Пробив", callback_data="probiv"),
-         InlineKeyboardButton(text="📞 Поддержка", callback_data="support_center")],
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_chat")]
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan1")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan2")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan3")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan4")],
+        [InlineKeyboardButton(text="Богдан", callback_data="bogdan5")]
     ])
     return keyboard
 

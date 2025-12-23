@@ -291,6 +291,20 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute('UPDATE users SET user_role = $1 WHERE user_id = $2', role, user_id)
 
+    async def ensure_executor_profile(self, user_id):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                'INSERT INTO executor_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+                user_id
+            )
+
+    async def ensure_customer_profile(self, user_id):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                'INSERT INTO customer_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+                user_id
+            )
+
     async def create_order(self, customer_id, price, start_time, address, workers_count, comment, phone_number=None, work_type=None):
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval(
